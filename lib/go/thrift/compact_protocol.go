@@ -486,7 +486,7 @@ func (p *TCompactProtocol) ReadMapBegin(ctx context.Context) (keyType TType, val
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkSizeForProtocol(size32, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
 	if err != nil {
 		return
 	}
@@ -524,7 +524,7 @@ func (p *TCompactProtocol) ReadListBegin(ctx context.Context) (elemType TType, s
 		}
 		size = int(size2)
 	}
-	err = checkSizeForProtocol(int32(size), p.cfg)
+	err = checkContainerSizeForProtocol(int64(size), 1, p.cfg)
 	if err != nil {
 		return
 	}

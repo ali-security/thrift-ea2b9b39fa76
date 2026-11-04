@@ -355,7 +355,7 @@ func (p *TBinaryProtocol) ReadMapBegin(ctx context.Context) (kType, vType TType,
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkSizeForProtocol(size32, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
 	if err != nil {
 		return
 	}
@@ -379,7 +379,7 @@ func (p *TBinaryProtocol) ReadListBegin(ctx context.Context) (elemType TType, si
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkSizeForProtocol(size32, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
 	if err != nil {
 		return
 	}
@@ -404,7 +404,7 @@ func (p *TBinaryProtocol) ReadSetBegin(ctx context.Context) (elemType TType, siz
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkSizeForProtocol(size32, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
 	if err != nil {
 		return
 	}
