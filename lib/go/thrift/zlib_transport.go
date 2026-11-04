@@ -22,6 +22,7 @@ package thrift
 import (
 	"compress/zlib"
 	"context"
+	"fmt"
 	"io"
 )
 
@@ -36,6 +37,8 @@ type TZlibTransport struct {
 	reader    io.ReadCloser
 	transport TTransport
 	writer    *zlib.Writer
+	conf      *TConfiguration
+	bytesRead int64
 }
 
 // GetTransport constructs a new instance of NewTZlibTransport
@@ -78,6 +81,7 @@ func NewTZlibTransport(trans TTransport, level int) (*TZlibTransport, error) {
 // Close closes the reader and writer (flushing any unwritten data) and closes
 // the underlying transport.
 func (z *TZlibTransport) Close() error {
+	z.bytesRead = 0
 	if z.reader != nil {
 		if err := z.reader.Close(); err != nil {
 			return err
@@ -116,7 +120,17 @@ func (z *TZlibTransport) Read(p []byte) (int, error) {
 		z.reader = r
 	}
 
-	return z.reader.Read(p)
+	n, err := z.reader.Read(p)
+	if n > 0 {
+		z.bytesRead += int64(n)
+		if maxSize := int64(z.conf.GetMaxMessageSize()); z.bytesRead > maxSize {
+			return n, NewTProtocolExceptionWithType(
+				SIZE_LIMIT,
+				fmt.Errorf("decompressed size exceeded limit of %d bytes", maxSize),
+			)
+		}
+	}
+	return n, err
 }
 
 // RemainingBytes returns the size in bytes of the data that is still to be
@@ -131,6 +145,7 @@ func (z *TZlibTransport) Write(p []byte) (int, error) {
 
 // SetTConfiguration implements TConfigurationSetter for propagation.
 func (z *TZlibTransport) SetTConfiguration(conf *TConfiguration) {
+	z.conf = conf
 	PropagateTConfiguration(z.transport, conf)
 }
 
