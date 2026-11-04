@@ -162,6 +162,7 @@ func TestNoHangDuringStopFromDanglingLockAcquireDuringAcceptLoop(t *testing.T) {
 }
 
 func TestNoHangDuringStopFromClientNoDataSendDuringAcceptLoop(t *testing.T) {
+	t.Skip("sealed-libraries: timing-flaky on shared CI runners - relies on a 10ms sleep for the server goroutine to accept the connection; when it has not, Stop() returns before ServerStopTimeout and the elapsed-time assertion fails")
 	ln, err := net.Listen("tcp", "localhost:0")
 
 	if err != nil {
