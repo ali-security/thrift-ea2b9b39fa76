@@ -451,6 +451,71 @@ func TestTHeaderTransportTransformCountBounded(t *testing.T) {
 	}
 }
 
+// TestTHeaderTransportTransformCountBoundedByHeaderBytes declares a
+// transformCount that fits well inside the default max message size but is
+// not backed by that many transform ID bytes in the header. The count must be
+// bounded by the header bytes that are actually left, so it is rejected with
+// SIZE_LIMIT before it sizes the transform ID slice, rather than accepted and
+// only failing later with EOF in the transform-ID read loop.
+func TestTHeaderTransportTransformCountBoundedByHeaderBytes(t *testing.T) {
+	headers := NewTMemoryBuffer()
+	hp := NewTCompactProtocol(headers)
+	if _, err := hp.writeVarint32(int32(THeaderProtocolCompact)); err != nil {
+		t.Fatalf("writeVarint32(protoID) returned error: %v", err)
+	}
+	const declaredTransformCount = 1000000
+	if _, err := hp.writeVarint32(declaredTransformCount); err != nil {
+		t.Fatalf("writeVarint32(transformCount) returned error: %v", err)
+	}
+	// No transform ID entries follow, unlike a legitimate frame.
+
+	if padding := 4 - headers.Len()%4; padding < 4 {
+		if _, err := headers.Write(make([]byte, padding)); err != nil {
+			t.Fatalf("headers.Write(padding) returned error: %v", err)
+		}
+	}
+
+	meta := headerMeta{
+		MagicFlags:   THeaderHeaderMagic,
+		SequenceID:   0,
+		HeaderLength: uint16(headers.Len() / 4),
+	}
+	frame := NewTMemoryBuffer()
+	if err := binary.Write(frame, binary.BigEndian, meta); err != nil {
+		t.Fatalf("binary.Write(meta) returned error: %v", err)
+	}
+	if _, err := io.Copy(frame, headers); err != nil {
+		t.Fatalf("io.Copy(headers) returned error: %v", err)
+	}
+
+	trans := NewTMemoryBuffer()
+	frameSizeBuf := make([]byte, size32)
+	binary.BigEndian.PutUint32(frameSizeBuf, uint32(frame.Len()))
+	if _, err := trans.Write(frameSizeBuf); err != nil {
+		t.Fatalf("trans.Write(frameSize) returned error: %v", err)
+	}
+	if _, err := io.Copy(trans, frame); err != nil {
+		t.Fatalf("io.Copy(trans, frame) returned error: %v", err)
+	}
+
+	// The default max message size (100MB) admits the declared count, so only
+	// the remaining-header-bytes bound can reject it.
+	reader := NewTHeaderTransportConf(trans, nil)
+	err := reader.ReadFrame(context.Background())
+	if err == nil {
+		t.Fatal("ReadFrame with an unbacked transformCount unexpectedly succeeded")
+	}
+	terr, ok := err.(TProtocolException)
+	if !ok || terr.TypeId() != SIZE_LIMIT {
+		t.Fatalf(
+			"ReadFrame returned %v, want a TProtocolException with TypeId SIZE_LIMIT (%d); "+
+				"an EOF-shaped error here means transformCount was not bounded by "+
+				"the remaining header bytes before being used to size an allocation",
+			err, SIZE_LIMIT,
+		)
+	}
+}
+
 // headerDepthTransport records the call-stack depth observed on every Read of
 // the underlying transport, so that a test can tell whether THeaderTransport
 // consumes successive frames iteratively or by re-entering itself once per

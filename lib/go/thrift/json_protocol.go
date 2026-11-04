@@ -314,7 +314,8 @@ func (p *TJSONProtocol) ReadMapBegin(ctx context.Context) (keyType TType, valueT
 	if err != nil {
 		return keyType, valueType, size, err
 	}
-	err = checkContainerSizeForProtocol(iSize, 1, p.cfg)
+	minElemSize := p.getMinSerializedSize(keyType) + p.getMinSerializedSize(valueType)
+	err = checkContainerSizeForProtocol(iSize, minElemSize, p.RemainingBytes(), p.cfg)
 	if err != nil {
 		return keyType, valueType, 0, err
 	}
@@ -492,7 +493,8 @@ func (p *TJSONProtocol) ParseElemListBegin() (elemType TType, size int, e error)
 	if err != nil {
 		return elemType, 0, err
 	}
-	err = checkContainerSizeForProtocol(nSize, 1, p.cfg)
+	minElemSize := p.getMinSerializedSize(elemType)
+	err = checkContainerSizeForProtocol(nSize, minElemSize, p.RemainingBytes(), p.cfg)
 	if err != nil {
 		return elemType, 0, err
 	}

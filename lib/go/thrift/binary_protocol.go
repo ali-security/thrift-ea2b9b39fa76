@@ -355,7 +355,8 @@ func (p *TBinaryProtocol) ReadMapBegin(ctx context.Context) (kType, vType TType,
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
+	minElemSize := p.getMinSerializedSize(kType) + p.getMinSerializedSize(vType)
+	err = checkContainerSizeForProtocol(int64(size32), minElemSize, p.trans.RemainingBytes(), p.cfg)
 	if err != nil {
 		return
 	}
@@ -379,7 +380,8 @@ func (p *TBinaryProtocol) ReadListBegin(ctx context.Context) (elemType TType, si
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
+	minElemSize := p.getMinSerializedSize(elemType)
+	err = checkContainerSizeForProtocol(int64(size32), minElemSize, p.trans.RemainingBytes(), p.cfg)
 	if err != nil {
 		return
 	}
@@ -404,7 +406,8 @@ func (p *TBinaryProtocol) ReadSetBegin(ctx context.Context) (elemType TType, siz
 		err = NewTProtocolException(e)
 		return
 	}
-	err = checkContainerSizeForProtocol(int64(size32), 1, p.cfg)
+	minElemSize := p.getMinSerializedSize(elemType)
+	err = checkContainerSizeForProtocol(int64(size32), minElemSize, p.trans.RemainingBytes(), p.cfg)
 	if err != nil {
 		return
 	}
@@ -545,6 +548,42 @@ var (
 	_ TConfigurationSetter = (*TBinaryProtocolFactory)(nil)
 	_ TConfigurationSetter = (*TBinaryProtocol)(nil)
 )
+
+// Return the minimum number of bytes a type will consume on the wire
+func (p *TBinaryProtocol) getMinSerializedSize(ttype TType) int32 {
+	switch ttype {
+	case STOP:
+		return 1 // T_STOP needs to count itself
+	case VOID:
+		return 1 // T_VOID needs to count itsel∂
+	case BOOL:
+		return 1 // sizeof(int8)
+	case BYTE:
+		return 1 // sizeof(int8)
+	case DOUBLE:
+		return 8 // sizeof(double)
+	case I16:
+		return 2 // sizeof(short)
+	case I32:
+		return 4 // sizeof(int)
+	case I64:
+		return 8 // sizeof(long)
+	case STRING:
+		return 4 // string length
+	case STRUCT:
+		return 1 // empty struct needs at least 1 byte for the T_STOP
+	case MAP:
+		return 4 // element count
+	case SET:
+		return 4 // element count
+	case LIST:
+		return 4 // element count
+	case UUID:
+		return 16 // 16 bytes
+	default:
+		return 1 // unknown type
+	}
+}
 
 // This function is shared between TBinaryProtocol and TCompactProtocol.
 //
